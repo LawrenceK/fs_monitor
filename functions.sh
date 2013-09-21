@@ -12,6 +12,7 @@ function is_mounted()
 
 function do_rsync()
 {
-	echo "Rsync from $1 to $2"
-	rsync --archive --verbose $1 $2 &>>$RSYNC_LOGFILE
+	echo "rsync from $1 to $2 - `date`"
+	rsync --archive --verbose $1 $2 >>$RSYNC_LOGFILE
+	echo "rsync complete - `date`"
 }
