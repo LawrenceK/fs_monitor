@@ -24,6 +24,14 @@ GPIO.setmode(GPIO.BOARD)
 GPIO.setwarnings(False)
 
 
+# place holder for adding command line
+class Config:
+    pass
+
+config = Config()
+config.rsync_script = "rsync_a_b.sh"
+
+
 class led:
     def __init__(self, channel):
         self.channel = channel
@@ -140,10 +148,10 @@ leds = [
 ]
 
 switches = [
-    switch(sw_topleft),
-    switch(sw_topright),
-    switch(sw_bottomleft),
-    switch(sw_bottomright)
+    switch(sw_topleft),     # Shutdown
+    switch(sw_topright),    # RSync
+    switch(sw_bottomleft),  # unmount sda1/diskA
+    switch(sw_bottomright)  # unmount sdb1/diskB
 ]
 
 disks = [
@@ -151,31 +159,19 @@ disks = [
     disk('/dev/sdb1', '/mnt/diskB', leds[3]),
 ]
 
-
 rsync_p = None
 
 
-def do_rsync(scriptfile):
+def do_rsync(script):
     global rsync_p
     if rsync_p is None and disks[0].is_mounted() and disks[1].is_mounted():
+        scriptfile = os.path.join(os.path.dirname(os.path.realpath(__file__)), script)
         _log.info("Rsync %s to/from %s using %s",
                   os.path.join(disks[1].mountpoint, "*"),
                   disks[0].mountpoint,
                   scriptfile)
         leds[1].flash(50)
         rsync_p = subprocess.Popen(scriptfile, shell=True)
-
-
-def sync_a_to_b():
-    do_rsync("/opt/fileserver/rsync_a_b.sh")
-
-
-def sync_b_to_a():
-    do_rsync("/opt/fileserver/rsync_b_a.sh")
-
-
-def sync_both():
-    do_rsync("/opt/fileserver/rsync_both.sh")
 
 
 def do_shutdown():
@@ -189,14 +185,14 @@ def main():
     try:
         _log.info("Startup fileserver monitor")
         switches[0].add_action(lambda s: do_shutdown())
-        switches[1].add_action(lambda s: sync_both())
+        switches[1].add_action(lambda s: do_rsync(config.rsync_script))
         switches[2].add_action(lambda s: disks[0].do_unmount())
         switches[3].add_action(lambda s: disks[1].do_unmount())
         while(True):
             time.sleep(2.0)
             if rsync_p is None:
                 if any([d.check_mount() for d in disks]):
-                    sync_both()
+                    do_rsync(config.rsync_script)
             elif rsync_p.poll() is not None:    # has rsync completed
                 rsync_p.returncode
                 rsync_p = None
